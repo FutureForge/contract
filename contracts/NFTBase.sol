@@ -9,12 +9,14 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
     uint256 public initialSupply;
     uint256 public mintedSupply;
     bool public initialized = false;
+    uint128 public mintFee;
 
-    constructor(string memory name, string memory symbol, uint256 _initialSupply)
+    constructor(string memory name, string memory symbol, uint256 _initialSupply, uint128 _mintFee)
         ERC721(name, symbol)
         Ownable(msg.sender)
     {
         initialSupply = _initialSupply;
+        mintFee = _mintFee;
     }
 
     function initialize(string memory _name, string memory _symbol, uint256 _initialSupply, address owner) external {
@@ -26,8 +28,8 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
         _setNameAndSymbol(_name, _symbol);
     }
 
-    function mint(address _to, string memory _tokenURI) public onlyOwner {
-        require(mintedSupply < initialSupply, "Max supply reached");
+    function mint(address _to, string memory _tokenURI) public payable onlyOwner {
+        require(msg.value >= mintFee, "Insufficient fee for minting");
         uint256 tokenId = mintedSupply + 1;
         _safeMint(_to, tokenId);
         if (bytes(_tokenURI).length > 0) {
@@ -36,7 +38,8 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
         mintedSupply += 1;
     }
 
-    function batchMint(address _to, string[] memory _tokenURIs) public onlyOwner {
+    function batchMint(address _to, string[] memory _tokenURIs) public payable onlyOwner {
+        require(msg.value >= mintFee, "Insufficient fee for minting");
         for (uint256 i = 0; i < _tokenURIs.length; i++) {
             require(mintedSupply < initialSupply, "Max supply reached");
             uint256 tokenId = mintedSupply + 1;
@@ -46,6 +49,14 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
             }
             mintedSupply += 1;
         }
+    }
+
+    function setInitialSupply(uint256 _initialSupply) external onlyOwner {
+        initialSupply = _initialSupply;
+    }
+
+    function withdrawFees() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
     }
 
     //Helper function
