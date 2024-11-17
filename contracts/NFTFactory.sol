@@ -13,7 +13,17 @@ contract NFTFactory {
     event MintFee(uint128 fee);
 
     constructor(uint128 _mintFee) {
-        implementationAddress = address(new NFTBase("Base", "BASE", 0, _mintFee));
+        bytes memory bytecode = abi.encodePacked(
+            type(NFTBase).creationCode,
+            abi.encode("Base", "BSE", 0, _mintFee)
+        );
+
+        address deployed;
+        assembly {
+            deployed := create(0, add(bytecode, 0x20), mload(bytecode))
+            if iszero(deployed) { revert(0, 0) }
+        }
+        implementationAddress = deployed;
         mintFee = _mintFee;
     }
 
