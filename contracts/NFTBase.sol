@@ -10,26 +10,30 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
     uint256 public mintedSupply;
     bool public initialized = false;
     uint128 public mintFee;
+    // string private customName;
+    // string private customSymbol;
 
-    constructor(string memory name, string memory symbol, uint256 _initialSupply, uint128 _mintFee)
+
+    constructor(string memory name, string memory symbol, uint256 _initialSupply/*, uint128 _mintFee*/)
         ERC721(name, symbol)
         Ownable(msg.sender)
     {
         initialSupply = _initialSupply;
-        mintFee = _mintFee;
+        // mintFee = _mintFee;
     }
 
-    function initialize(string memory _name, string memory _symbol, uint256 _initialSupply, address owner) external {
-        require(initialSupply == 0, "Already initialized");
-        require(!initialized, "Already initialized");
-        initialized = true;
-        initialSupply = _initialSupply;
-        _transferOwnership(owner);
-        _setNameAndSymbol(_name, _symbol);
-    }
+    // function initialize(string memory _name, string memory _symbol, uint256 _initialSupply) external {
+    //     require(initialSupply == 0, "Already initialized");
+    //     require(!initialized, "Already initialized");
+    //     initialized = true;
+    //     initialSupply = _initialSupply;
+    //     customName = _name;
+    //     customSymbol = _symbol;
+    //     _setNameAndSymbol(_name, _symbol);
+    // }
 
-    function mint(address _to, string memory _tokenURI) public payable onlyOwner {
-        require(msg.value >= mintFee, "Insufficient fee for minting");
+    function mint(address _to, string memory _tokenURI) public /*payable*/  {
+        // require(msg.value >= mintFee, "Insufficient fee for minting");
         uint256 tokenId = mintedSupply + 1;
         _safeMint(_to, tokenId);
         if (bytes(_tokenURI).length > 0) {
@@ -38,8 +42,8 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
         mintedSupply += 1;
     }
 
-    function batchMint(address _to, string[] memory _tokenURIs) public payable onlyOwner {
-        require(msg.value >= mintFee, "Insufficient fee for minting");
+    function batchMint(address _to, string[] memory _tokenURIs) public /*payable*/ {
+        // require(msg.value >= mintFee, "Insufficient fee for minting");
         for (uint256 i = 0; i < _tokenURIs.length; i++) {
             require(mintedSupply < initialSupply, "Max supply reached");
             uint256 tokenId = mintedSupply + 1;
@@ -55,17 +59,15 @@ contract NFTBase is ERC721Enumerable, ERC721URIStorage, Ownable {
         initialSupply = _initialSupply;
     }
 
-    function withdrawFees() external onlyOwner {
-        payable(owner()).transfer(address(this).balance);
-    }
+    
 
     //Helper function
-    function _setNameAndSymbol(string memory _name, string memory _symbol) internal {
-        assembly {
-            sstore(0x0, _name)
-            sstore(0x1, _symbol)
-        }
-    }
+    // function _setNameAndSymbol(string memory _name, string memory _symbol) internal {
+    //     assembly {
+    //         sstore(0x0, _name)
+    //         sstore(0x1, _symbol)
+    //     }
+    // }
 
     function supportsInterface(bytes4 interfaceId)
         public
