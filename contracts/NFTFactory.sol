@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {NFTBase} from "./NFTBase.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/interfaces/IERC721.sol";
 
 contract NFTFactory is Ownable {
     mapping(address => address[]) internal  UserNFTs;
