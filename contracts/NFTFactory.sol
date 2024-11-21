@@ -36,6 +36,18 @@ contract NFTFactory is Ownable {
         return deployed;
     }
 
+    function setMintFee (uint256 _fee) external onlyOwner{
+        require(_fee >= 0, "Mint fee should have a value");
+        mintFee = _fee;
+        emit FeeUpdated("Mint Fee", _fee);
+    }
+
+    function setCreationFee (uint256 _fee) external onlyOwner{
+        require(_fee >= 0, "Mint fee should have a value");
+        creationFee = _fee;
+        emit FeeUpdated("Creation Fee", _fee);
+    }
+
 
     // Withdrawal function
     function withdrawFees() public onlyOwner {
