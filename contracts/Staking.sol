@@ -2,97 +2,104 @@
 pragma solidity ^0.8.0;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-
 contract Staking is Ownable {
-    //Structs
     struct Stake {
-        uint256 amount; 
-        uint256 timestamp;
+        uint256 amount;
+        uint256 startTime;
+        uint256 lockPeriod; // Lock duration in seconds
     }
 
-    //State variables
     mapping(address => Stake[]) public stakes;
-    uint256 public rewardRate; 
-    uint256 public lockPeriod;
+    uint256[] public milestoneDays = [1, 5, 10, 15, 30];
+    uint256[] public rewardRates = [3, 5, 8, 10, 15];
+    uint256 public penaltyFees;
+    uint256 public constant UNSTAKE_PENALTY_RATE = 2;
 
-    // Events
-    event Staked(address indexed user, uint256 amount, uint256 timestamp);
+    event Staked(address indexed user, uint256 amount, uint256 _lockPeriod);
     event Withdrawn(address indexed user, uint256 amount, uint256 reward);
-    event UpdateLock(uint256 _lockPeriod);
-    event UpdateReward(uint256 _rewardRate);
 
-    constructor
-    (uint256 _rewardRate, uint256 _lockPeriod) 
-    Ownable(msg.sender) 
-    {
-        rewardRate = _rewardRate;
-        lockPeriod = _lockPeriod;
-    }
+    constructor() Ownable(msg.sender) {}
 
+    function stake(uint256 _lockPeriod) external payable {
+        require(msg.value > 0, "Stake amount should be greater than 0");
+        require(_lockPeriod >= 1 days, "Lock period must be greater than a day");
 
-    //Staking function
-    function stake ()external payable {
-        require(msg.value > 0, "Stake amount sshould be greater than 0");
         stakes[msg.sender].push(Stake({
             amount: msg.value,
-            timestamp: block.timestamp
+            startTime: block.timestamp,
+            lockPeriod: _lockPeriod
         }));
 
-        emit Staked(msg.sender, msg.value, block.timestamp);
+        emit Staked(msg.sender, msg.value, _lockPeriod);
     }
 
-    //Withdrawal of Stake
-    function withdrawal (uint256 stakeIndex) external {
+    function unstake(uint256 stakeIndex) external {
         require(stakeIndex < stakes[msg.sender].length, "Invalid stake index");
         Stake memory userStake = stakes[msg.sender][stakeIndex];
 
-        require(userStake.amount >0,"User stake withdrawn");
-        require(block.timestamp >= userStake.timestamp + lockPeriod, "Stake is still locked");
+        require(userStake.amount > 0, "User stake withdrawn");
+        require(block.timestamp >= userStake.lockPeriod + userStake.startTime, "Stake is still locked");
 
-        // Reward Calculation
+        uint256 rewardRate = calculateRewardRate(userStake.lockPeriod / 1 days);
         uint256 reward = (userStake.amount * rewardRate) / 100;
         uint256 totalAmount = userStake.amount + reward;
 
-        //Stake removal
-        stakes[msg.sender][stakeIndex].amount = 0;
+        removeStake(stakeIndex);
         payable(msg.sender).transfer(totalAmount);
 
         emit Withdrawn(msg.sender, userStake.amount, reward);
     }
 
-    //Unstaking before lock ends
-    function unstake (uint256 stakeIndex) external {
+    function withdrawalEmmergency(uint256 stakeIndex) external {
         require(stakeIndex < stakes[msg.sender].length, "Invalid stake index");
         Stake memory userStake = stakes[msg.sender][stakeIndex];
 
-        require(userStake.amount >0,"User stake withdrawn");
+        require(userStake.amount > 0, "User stake withdrawn");
 
-        //penalty calculation
-        uint256 penalty = (userStake.amount * 2) / 100;
+        uint256 penalty = (userStake.amount * UNSTAKE_PENALTY_RATE) / 100;
+        penaltyFees += penalty;
         uint256 amountAfterPenalty = userStake.amount - penalty;
 
-        //Stake removal
-        stakes[msg.sender][stakeIndex].amount = 0;
+        removeStake(stakeIndex);
         payable(msg.sender).transfer(amountAfterPenalty);
 
         emit Withdrawn(msg.sender, amountAfterPenalty, penalty);
     }
 
-    //This function is done by the deployer of the contract
     function withdrawFees() public onlyOwner {
-        payable(owner()).transfer(address(this).balance);
+        require(penaltyFees > 0, "No fees to withdraw");
+        uint256 amount = penaltyFees;
+        penaltyFees = 0;
+        payable(owner()).transfer(amount);
     }
 
-    function setLockPeriod (uint256 _lockPeriod) external onlyOwner{
-        lockPeriod = _lockPeriod;
-        emit UpdateLock(_lockPeriod);
+    function calculateRewardRate(uint256 stakeDays) public view returns (uint256) {
+        if (stakeDays >= milestoneDays[milestoneDays.length - 1]) {
+            return rewardRates[rewardRates.length - 1];
+        }
+
+        for (uint256 i = 0; i < milestoneDays.length - 1; i++) {
+            if (stakeDays >= milestoneDays[i] && stakeDays < milestoneDays[i + 1]) {
+                uint256 lowerDays = milestoneDays[i];
+                uint256 upperDays = milestoneDays[i + 1];
+                uint256 lowerRate = rewardRates[i];
+                uint256 upperRate = rewardRates[i + 1];
+
+                return lowerRate + ((stakeDays - lowerDays) * (upperRate - lowerRate)) / (upperDays - lowerDays);
+            }
+        }
+
+        return rewardRates[0];
     }
 
-    function setRewardRate(uint256 _rewardRate) external onlyOwner{
-        rewardRate = _rewardRate;
-        emit UpdateReward(_rewardRate);
+    function removeStake(uint256 stakeIndex) internal {
+        uint256 lastIndex = stakes[msg.sender].length - 1;
+        if (stakeIndex != lastIndex) {
+            stakes[msg.sender][stakeIndex] = stakes[msg.sender][lastIndex];
+        }
+        stakes[msg.sender].pop();
     }
 
-    //Function to acccept ETH
     receive() external payable {}
 }
+
