@@ -100,6 +100,10 @@ contract Staking is Ownable {
         stakes[msg.sender].pop();
     }
 
+    function getUserStake() public view  returns (Stake[] memory){
+        return stakes[msg.sender];
+    }
+
     receive() external payable {}
 }
 
