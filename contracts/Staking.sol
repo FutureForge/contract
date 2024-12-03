@@ -3,13 +3,20 @@ pragma solidity ^0.8.0;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Staking is Ownable {
-    struct Stake {
+    struct UserStake {
         uint256 amount;
         uint256 startTime;
-        uint256 lockPeriod; // Lock duration in seconds
+        uint256 lockPeriod;
     }
 
-    mapping(address => Stake[]) public stakes;
+    struct Stake{
+        uint256 totalStake;
+        uint256 totalUnstake;
+        uint256 activeStake;
+    }
+
+    Stake public  contractStake;
+    mapping(address => UserStake[]) public stakes;
     uint256[] public milestoneDays = [1, 5, 10, 15, 30];
     uint256[] public rewardRates = [3, 5, 8, 10, 15];
     uint256 public penaltyFees;
@@ -24,18 +31,22 @@ contract Staking is Ownable {
         require(msg.value > 0, "Stake amount should be greater than 0");
         require(_lockPeriod >= 1 days, "Lock period must be greater than a day");
 
-        stakes[msg.sender].push(Stake({
+        stakes[msg.sender].push(UserStake({
             amount: msg.value,
             startTime: block.timestamp,
             lockPeriod: _lockPeriod
         }));
+
+        contractStake.totalStake += msg.value;
+        contractStake.activeStake ++;
+
 
         emit Staked(msg.sender, msg.value, _lockPeriod);
     }
 
     function unstake(uint256 stakeIndex) external {
         require(stakeIndex < stakes[msg.sender].length, "Invalid stake index");
-        Stake memory userStake = stakes[msg.sender][stakeIndex];
+        UserStake memory userStake = stakes[msg.sender][stakeIndex];
 
         require(userStake.amount > 0, "User stake withdrawn");
         require(block.timestamp >= userStake.lockPeriod + userStake.startTime, "Stake is still locked");
@@ -43,6 +54,9 @@ contract Staking is Ownable {
         uint256 rewardRate = calculateRewardRate(userStake.lockPeriod / 1 days);
         uint256 reward = (userStake.amount * rewardRate) / 100;
         uint256 totalAmount = userStake.amount + reward;
+
+        contractStake.totalUnstake += totalAmount;
+        contractStake.activeStake--;
 
         removeStake(stakeIndex);
         payable(msg.sender).transfer(totalAmount);
@@ -52,7 +66,7 @@ contract Staking is Ownable {
 
     function withdrawalEmmergency(uint256 stakeIndex) external {
         require(stakeIndex < stakes[msg.sender].length, "Invalid stake index");
-        Stake memory userStake = stakes[msg.sender][stakeIndex];
+        UserStake memory userStake = stakes[msg.sender][stakeIndex];
 
         require(userStake.amount > 0, "User stake withdrawn");
 
@@ -60,6 +74,8 @@ contract Staking is Ownable {
         penaltyFees += penalty;
         uint256 amountAfterPenalty = userStake.amount - penalty;
 
+        contractStake.totalUnstake += amountAfterPenalty;
+        contractStake.activeStake--;
         removeStake(stakeIndex);
         payable(msg.sender).transfer(amountAfterPenalty);
 
@@ -100,10 +116,14 @@ contract Staking is Ownable {
         stakes[msg.sender].pop();
     }
 
-    function getUserStake() public view  returns (Stake[] memory){
+    function getUserStake() public view  returns (UserStake[] memory){
         return stakes[msg.sender];
+    }
+
+    function amountLeft() public view returns(uint256){
+        uint256 reserved = contractStake.totalStake - contractStake.totalUnstake;
+        return reserved;
     }
 
     receive() external payable {}
 }
-
